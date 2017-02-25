@@ -2,11 +2,11 @@
 // Color to Greyscale Conversion
 
 //A common way to represent color images is known as RGBA - the color
-//is specified by how much Red, Grean and Blue is in it.
-//The 'A' stands for Alpha and is used for transparency, it will be
+//is specified by how much Red, Green, and Blue is in it.
+//The 'A' stands for Alpha and is used for transparency; it will be
 //ignored in this homework.
 
-//Each channel Red, Blue, Green and Alpha is represented by one byte.
+//Each channel Red, Blue, Green, and Alpha is represented by one byte.
 //Since we are using one byte for each color there are 256 different
 //possible values for each color.  This means we use 4 bytes per pixel.
 
@@ -31,36 +31,95 @@
 //You should fill in the kernel as well as set the block and grid sizes
 //so that the entire image is processed.
 
+#include "reference_calc.cpp"
 #include "utils.h"
+#include <stdio.h>
 
 __global__
 void rgba_to_greyscale(const uchar4* const rgbaImage,
                        unsigned char* const greyImage,
                        int numRows, int numCols)
 {
-  //TODO
-  //Fill in the kernel to convert from color to greyscale
-  //the mapping from components of a uchar4 to RGBA is:
-  // .x -> R ; .y -> G ; .z -> B ; .w -> A
-  //
-  //The output (greyImage) at each pixel should be the result of
-  //applying the formula: output = .299f * R + .587f * G + .114f * B;
-  //Note: We will be ignoring the alpha channel for this conversion
+  /*
+   * Find the location of the image pixel
+   */
+  int x = (blockIdx.x * blockDim.x) + threadIdx.x; //row id of the pixel
+  int y = (blockIdx.y * blockDim.y) + threadIdx.y; //column id of the pixel
+  
+  /*
+   * Get the rgb value of original image for the location above found
+   */
+  uchar4 rgb_value = *(rgbaImage + (x * numCols + y));
+  
+  /*
+   * Calculate grey scale pixel value for the same location 
+   */
+  unsigned char grey_value = rgb_value.x*.299f + rgb_value.y*.587f + rgb_value.z*.114f;
+  
+  /*
+   * Save the calculated value for memory allocated of gray scale image
+   */
+  *(greyImage + (x * numCols + y)) = grey_value;
+  
+}
 
-  //First create a mapping from the 2D block and grid locations
-  //to an absolute 2D location in the image, then use that to
-  //calculate a 1D offset
+__global__
+void lightness_rgba_to_greyscale(const uchar4* const rgbaImage,
+                       unsigned char* const greyImage,
+                       int numRows, int numCols)
+{
+  /*
+   * Find the location of the image pixel
+   */
+  int x = (blockIdx.x * blockDim.x) + threadIdx.x; //row id of the pixel
+  int y = (blockIdx.y * blockDim.y) + threadIdx.y; //column id of the pixel
+  
+  /*
+   * Get the rgb value of original image for the location above found
+   */
+  uchar4 rgb_value = *(rgbaImage + (x * numCols + y));
+  
+  /*
+   * Calculate grey scale pixel value for the same location 
+   */
+  unsigned char max_rgba = rgb_value.x;
+  unsigned char min_rgba = rgb_value.x;
+  
+  if(rgb_value.y > max_rgba){
+    max_rgba = rgb_value.y;
+  }
+  
+  if(rgb_value.z > max_rgba){
+    max_rgba = rgb_value.z;
+  }
+  
+  if(rgb_value.y < min_rgba){
+    min_rgba = rgb_value.y;
+  }
+  
+  if(rgb_value.z < min_rgba){
+    min_rgba = rgb_value.z;
+  }
+  
+  unsigned char grey_value = (max_rgba + min_rgba)/2;
+  
+  /*
+   * Save the calculated value for memory allocated of gray scale image
+   */
+  *(greyImage + (x * numCols + y)) = grey_value;
 }
 
 void your_rgba_to_greyscale(const uchar4 * const h_rgbaImage, uchar4 * const d_rgbaImage,
                             unsigned char* const d_greyImage, size_t numRows, size_t numCols)
 {
-  //You must fill in the correct sizes for the blockSize and gridSize
-  //currently only one block with one thread is being launched
-  const dim3 blockSize(1, 1, 1);  //TODO
-  const dim3 gridSize( 1, 1, 1);  //TODO
+  /*
+   * Divide rows into 16 and columns into 16. 
+   */ 
+  int choise; 
+  const dim3 blockSize(17, 17, 1);  //TODO
+  const dim3 gridSize( numRows/16, numCols/16, 1);  //TODO
   rgba_to_greyscale<<<gridSize, blockSize>>>(d_rgbaImage, d_greyImage, numRows, numCols);
+  lightness_rgba_to_greyscale<<<gridSize, blockSize>>>(d_rgbaImage, d_greyImage, numRows, numCols);
   
   cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
-
 }
